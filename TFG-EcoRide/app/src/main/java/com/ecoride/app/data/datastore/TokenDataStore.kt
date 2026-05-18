@@ -15,11 +15,19 @@ class TokenDataStore(private val context: Context) {
         private val KEY_TOKEN    = stringPreferencesKey("jwt_token")
         private val KEY_ROLE     = stringPreferencesKey("user_role")
         private val KEY_USERNAME = stringPreferencesKey("username")
+        private val KEY_THEME    = stringPreferencesKey("app_theme") // "light", "dark", "system"
     }
 
     val tokenFlow: Flow<String?> = context.dataStore.data.map { it[KEY_TOKEN] }
     val roleFlow:  Flow<String?> = context.dataStore.data.map { it[KEY_ROLE] }
     val usernameFlow: Flow<String?> = context.dataStore.data.map { it[KEY_USERNAME] }
+    val themeFlow: Flow<String> = context.dataStore.data.map { it[KEY_THEME] ?: "system" }
+
+    suspend fun saveTheme(theme: String) {
+        context.dataStore.edit { prefs ->
+            prefs[KEY_THEME] = theme
+        }
+    }
 
     suspend fun saveSession(token: String, role: String, username: String) {
         context.dataStore.edit { prefs ->

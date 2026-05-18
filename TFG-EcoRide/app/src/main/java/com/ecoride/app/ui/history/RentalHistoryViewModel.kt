@@ -4,9 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ecoride.app.data.api.models.RentalDto
 import com.ecoride.app.data.repository.RentalRepository
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
 sealed interface HistoryUiState {
@@ -19,6 +18,18 @@ class RentalHistoryViewModel(private val rentalRepository: RentalRepository) : V
 
     private val _uiState = MutableStateFlow<HistoryUiState>(HistoryUiState.Loading)
     val uiState: StateFlow<HistoryUiState> = _uiState.asStateFlow()
+
+    // Ticker para actualizaciones en tiempo real (cada segundo)
+    val currentTime = flow {
+        while (true) {
+            emit(System.currentTimeMillis())
+            delay(1000)
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = System.currentTimeMillis()
+    )
 
     init {
         loadHistory()

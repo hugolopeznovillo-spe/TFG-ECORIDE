@@ -32,10 +32,12 @@ class RentalRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val response = api.getActiveRental()
-                when {
-                    response.isSuccessful          -> response.body()
-                    response.code() == 404         -> null   // sin alquiler activo
-                    else -> error("Error ${response.code()}")
+                if (response.isSuccessful) {
+                    response.body()?.rental
+                } else if (response.code() == 404) {
+                    null
+                } else {
+                    error("Error ${response.code()}")
                 }
             }
         }

@@ -15,13 +15,17 @@ import com.ecoride.app.ui.login.LoginScreen
 import com.ecoride.app.ui.login.LoginViewModel
 import com.ecoride.app.ui.register.RegisterScreen
 import com.ecoride.app.ui.register.RegisterViewModel
+import com.ecoride.app.ui.settings.SettingsScreen
 import com.ecoride.app.ui.vehicles.VehicleListScreen
 import com.ecoride.app.ui.vehicles.VehicleListViewModel
+import com.ecoride.app.data.datastore.TokenDataStore
 
 @Composable
 fun NavGraph(
     navController: NavHostController,
     startDestination: String,
+    tokenDataStore:          TokenDataStore,
+    currentTheme:            String,
     loginVmFactory:          () -> LoginViewModel,
     registerVmFactory:       () -> RegisterViewModel,
     vehicleListVmFactory:    () -> VehicleListViewModel,
@@ -60,6 +64,7 @@ fun NavGraph(
                     navController.navigate(Routes.VehicleDetail.createRoute(vehicleId))
                 },
                 onHistoryClick = { navController.navigate(Routes.RentalHistory.route) },
+                onSettingsClick = { navController.navigate(Routes.Settings.route) },
                 onLogout = {
                     navController.navigate(Routes.Login.route) {
                         popUpTo(Routes.VehicleList.route) { inclusive = true }
@@ -86,6 +91,19 @@ fun NavGraph(
             RentalHistoryScreen(
                 viewModel = vm,
                 onBack    = { navController.popBackStack() }
+            )
+        }
+
+        composable(Routes.Settings.route) {
+            SettingsScreen(
+                tokenDataStore = tokenDataStore,
+                currentTheme = currentTheme,
+                onBack = { navController.popBackStack() },
+                onLogout = {
+                    navController.navigate(Routes.Login.route) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
             )
         }
     }

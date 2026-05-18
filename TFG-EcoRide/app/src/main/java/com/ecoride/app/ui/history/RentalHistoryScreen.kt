@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecoride.app.data.api.models.RentalDto
+import java.time.Duration
+import java.time.Instant
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,6 +32,7 @@ fun RentalHistoryScreen(
     onBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val currentTime by viewModel.currentTime.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -71,10 +75,11 @@ fun RentalHistoryScreen(
                         ) {
                             items(
                                 items = state.rentals,
-                                key = { it.id }
+                                key = { it.id ?: it.hashCode().toString() }
                             ) { rental ->
                                 RentalCard(
                                     rental = rental,
+                                    currentTime = currentTime,
                                     onEnd = { viewModel.endRental(it) }
                                 )
                             }
@@ -89,66 +94,94 @@ fun RentalHistoryScreen(
 @Composable
 fun RentalCard(
     rental: RentalDto,
+    currentTime: Long,
     onEnd: (String) -> Unit = {}
 ) {
     val isActive = rental.status == "activo"
+    
+    val displayDuration: String
+    val displayCost: Double
+    
+    if (isActive) {
+        val start = try {
+            val cleanTime = (rental.startTime ?: "").replace(" ", "T").let {
+                when {
+                    it.length == 16 -> "$it:00Z"
+                    !it.endsWith("Z") && !it.contains("+") -> "${it}Z"
+                    else -> it
+                }
+            }
+            Instant.parse(cleanTime)
+        } catch (e: Exception) {
+            Instant.ofEpochMilli(currentTime)
+        }
+        val now = Instant.ofEpochMilli(currentTime)
+        val diff = Duration.between(start, now)
+        val totalSeconds = diff.seconds.coerceAtLeast(0)
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        
+        displayDuration = "%d min %02d seg".format(minutes, seconds)
+        displayCost = (totalSeconds / 60.0) * (rental.pricePerMin ?: 0.0)
+    } else {
+        displayDuration = "${rental.durationMin?.toInt() ?: 0} min"
+        displayCost = rental.totalCost ?: 0.0
+    }
     
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) 
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                MaterialTheme.colorScheme.primaryContainer
             else 
                 MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isActive) 4.dp else 2.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
-            // Cabecera: Modelo y Estado
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    modifier = Modifier.weight(1f), // Esto permite que el texto ocupe el espacio disponible
+                    modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f)),
+                            .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary.copy(alpha = 0.2f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.ElectricScooter,
                             contentDescription = null,
-                            tint = if (isActive) Color.Black else MaterialTheme.colorScheme.primary,
+                            tint = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                     }
                     Spacer(Modifier.width(12.dp))
                     Text(
-                        text = rental.vehicleModel,
+                        text = rental.vehicleModel ?: "Patinete",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1 // Evitamos que el nombre ocupe varias líneas
+                        maxLines = 1
                     )
                 }
                 
-                Spacer(Modifier.width(8.dp)) // Margen de seguridad
+                Spacer(Modifier.width(8.dp))
                 StatusBadge(isActive)
             }
 
-            Divider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp, color = Color.LightGray.copy(alpha = 0.5f))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
 
-            // Información de tiempo
             InfoRow(
                 icon = Icons.Default.Schedule,
                 label = "Inicio",
-                value = rental.startTime.take(16).replace("T", " ")
+                value = (rental.startTime ?: "").take(16).replace("T", " ")
             )
 
             if (!isActive && rental.endTime != null) {
@@ -160,41 +193,48 @@ fun RentalCard(
                 )
             }
 
-            // Resumen de coste y duración
-            if (!isActive) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f))
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("Duración", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                        Text(
-                            "${rental.durationMin?.toInt() ?: 0} min",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("Total", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                        Text(
-                            "%.2f €".format(rental.totalCost ?: 0.0),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 16.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                        else MaterialTheme.colorScheme.secondary.copy(alpha = 0.05f)
+                    )
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column {
+                    Text(
+                        if (isActive) "Tiempo transcurrido" else "Duración", 
+                        style = MaterialTheme.typography.labelSmall, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        displayDuration,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        if (isActive) "Coste actual" else "Total", 
+                        style = MaterialTheme.typography.labelSmall, 
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "%.2f €".format(displayCost),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
-            // Botón de finalizar (si está activo)
             if (isActive) {
                 Button(
-                    onClick = { onEnd(rental.id) },
+                    onClick = { onEnd(rental.id ?: "") },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 20.dp)
@@ -214,7 +254,7 @@ fun RentalCard(
 @Composable
 fun StatusBadge(isActive: Boolean) {
     Surface(
-        color = if (isActive) Color(0xFFB0E64C).copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.1f),
+        color = if (isActive) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(8.dp)
     ) {
         Row(
@@ -225,14 +265,14 @@ fun StatusBadge(isActive: Boolean) {
                 modifier = Modifier
                     .size(8.dp)
                     .clip(CircleShape)
-                    .background(if (isActive) Color(0xFF4CAF50) else Color.Gray)
+                    .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
             )
             Spacer(Modifier.width(6.dp))
             Text(
                 text = if (isActive) "ACTIVO" else "FINALIZADO",
                 style = MaterialTheme.typography.labelSmall,
                 fontWeight = FontWeight.Bold,
-                color = if (isActive) Color(0xFF2E7D32) else Color.Gray
+                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
             )
         }
     }
@@ -241,11 +281,10 @@ fun StatusBadge(isActive: Boolean) {
 @Composable
 fun InfoRow(icon: ImageVector, label: String, value: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, modifier = Modifier.size(16.dp), tint = Color.Gray)
+        Icon(icon, null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.width(8.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
-        Spacer(Modifier.weight(1f))
-        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(60.dp))
+        Text(value, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -256,25 +295,14 @@ fun ErrorState(message: String, onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(Icons.Default.ErrorOutline, null, modifier = Modifier.size(64.dp), tint = Color.Red)
-        Spacer(Modifier.height(16.dp))
-        Text(message)
-        Button(onClick = onRetry, modifier = Modifier.padding(top = 16.dp)) {
-            Text("Reintentar")
-        }
+        Text(message, color = MaterialTheme.colorScheme.error)
+        Button(onClick = onRetry) { Text("Reintentar") }
     }
 }
 
 @Composable
 fun EmptyState() {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Icon(Icons.Default.History, null, modifier = Modifier.size(80.dp), tint = Color.LightGray)
-        Spacer(Modifier.height(16.dp))
-        Text("No hay trayectos", style = MaterialTheme.typography.headlineSmall, color = Color.Gray)
-        Text("Tus viajes aparecerán aquí", color = Color.Gray)
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Text("No hay trayectos registrados")
     }
 }

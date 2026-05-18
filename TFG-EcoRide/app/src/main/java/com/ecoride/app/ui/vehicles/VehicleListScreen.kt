@@ -15,12 +15,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.ecoride.app.data.local.VehicleEntity
 import com.ecoride.app.ui.components.StatusChip
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import com.ecoride.app.data.api.models.RentalDto
+import java.util.Locale
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VehicleListScreen(
     viewModel: VehicleListViewModel,
     onVehicleClick: (String) -> Unit,
     onHistoryClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onLogout: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -41,11 +50,8 @@ fun VehicleListScreen(
                     IconButton(onClick = onHistoryClick) {
                         Icon(Icons.Default.History, "Historial")
                     }
-                    IconButton(onClick = {
-                        viewModel.logout()
-                        onLogout()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, "Cerrar sesión")
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, "Ajustes")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -70,6 +76,15 @@ fun VehicleListScreen(
                 }
                 else -> {
                     Column {
+                        // Banner de Alquiler Activo
+                        uiState.activeRental?.let { rental ->
+                            ActiveRentalBanner(
+                                rental = rental,
+                                elapsedSeconds = uiState.elapsedSeconds,
+                                currentCost = uiState.currentCost
+                            )
+                        }
+
                         // Banner de error de red (no bloquea la UI)
                         uiState.errorMessage?.let { msg ->
                             Surface(color = MaterialTheme.colorScheme.errorContainer) {
@@ -134,6 +149,75 @@ fun VehicleListScreen(
 }
 
 @Composable
+fun ActiveRentalBanner(
+    rental: RentalDto,
+    elapsedSeconds: Long,
+    currentCost: Double
+) {
+    val hours = elapsedSeconds / 3600
+    val minutes = (elapsedSeconds % 3600) / 60
+    val seconds = elapsedSeconds % 60
+    val timeString = String.format(Locale.getDefault(), "%02d:%02d:%02d", hours, minutes, seconds)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.PlayCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Viaje en curso",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
+                Text(
+                    text = rental.vehicleModel ?: "Patinete en uso",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = timeString,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+                Text(
+                    text = "%.2f €".format(Locale.getDefault(), currentCost),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.9f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun VehicleCard(
     vehicle: VehicleEntity,
     onClick: () -> Unit
@@ -150,7 +234,7 @@ fun VehicleCard(
                 verticalAlignment   = Alignment.CenterVertically
             ) {
                 Text(
-                    text  = vehicle.model,
+                    text  = vehicle.model ?: "Modelo desconocido",
                     style = MaterialTheme.typography.titleMedium
                 )
                 StatusChip(status = vehicle.status)
@@ -177,7 +261,7 @@ fun VehicleCard(
                         tint     = MaterialTheme.colorScheme.primary
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text(vehicle.location, style = MaterialTheme.typography.bodySmall)
+                    Text(vehicle.location ?: "N/A", style = MaterialTheme.typography.bodySmall)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(

@@ -42,7 +42,14 @@ class MainActivity : ComponentActivity() {
         rentalRepository  = RentalRepository()
 
         setContent {
-            EcoRideTheme {
+            val themeMode by tokenDataStore.themeFlow.collectAsStateWithLifecycle(initialValue = "system")
+            val darkTheme = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+
+            EcoRideTheme(darkTheme = darkTheme) {
                 // Leer el token guardado para decidir la pantalla inicial
                 val savedToken by tokenDataStore.tokenFlow.collectAsStateWithLifecycle(initialValue = null)
                 val startDestination = if (savedToken != null) {
@@ -59,9 +66,11 @@ class MainActivity : ComponentActivity() {
                 NavGraph(
                     navController    = navController,
                     startDestination = startDestination,
+                    tokenDataStore   = tokenDataStore,
+                    currentTheme     = themeMode,
                     loginVmFactory       = { LoginViewModel(authRepository) },
                     registerVmFactory    = { RegisterViewModel(authRepository) },
-                    vehicleListVmFactory = { VehicleListViewModel(vehicleRepository, authRepository) },
+                    vehicleListVmFactory = { VehicleListViewModel(vehicleRepository, authRepository, rentalRepository) },
                     vehicleDetailVmFactory = { VehicleDetailViewModel(vehicleRepository, rentalRepository) },
                     rentalHistoryVmFactory = { RentalHistoryViewModel(rentalRepository) }
                 )

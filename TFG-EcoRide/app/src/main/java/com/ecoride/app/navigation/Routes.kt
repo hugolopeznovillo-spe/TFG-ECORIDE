@@ -8,4 +8,5 @@ sealed class Routes(val route: String) {
         fun createRoute(vehicleId: String) = "vehicle_detail/$vehicleId"
     }
     object RentalHistory : Routes("rental_history")
+    object Settings      : Routes("settings")
 }

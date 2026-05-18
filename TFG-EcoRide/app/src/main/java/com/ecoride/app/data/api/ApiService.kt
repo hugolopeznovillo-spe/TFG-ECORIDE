@@ -25,7 +25,7 @@ interface ApiService {
     suspend fun endRental(@Path("id") rentalId: String): Response<RentalDto>
 
     @GET("rentals/active")
-    suspend fun getActiveRental(): Response<RentalDto>
+    suspend fun getActiveRental(): Response<ActiveRentalResponse>
 
     @GET("rentals/my-history")
     suspend fun getMyHistory(): Response<RentalHistoryResponse>
